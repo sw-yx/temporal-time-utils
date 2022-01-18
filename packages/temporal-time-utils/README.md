@@ -42,6 +42,8 @@ You can consider it the next step up from `sleepUntil`.
 After you instantiate it with an initial datetime to wake up at, it exposes only two APIs: `then()` for you to `await`, and `.deadline` that you can set and get.
 
 ```ts
+import { UpdatableTimer } from "temporal-time-utils";
+
 // example usage inside workflow function
 export async function countdownWorkflow(initialDeadline: Date): Promise<void> {
   const timer = new UpdatableTimer(initialDeadline);
@@ -69,6 +71,8 @@ See example usage inside of `/apps/fixture`:
 - https://github.com/sw-yx/temporal-time-utils/blob/main/apps/fixture/src/workflows.ts#L5 necessary export for Worker to pick it up
 
 ```ts
+import { ScheduleWorkflow } from "temporal-time-utils";
+
 // inside client file
 async function run() {
   const client = new WorkflowClient();
@@ -144,4 +148,32 @@ await handle.signal(stateSignal, "PAUSED" as ScheduleWorkflowState); // pause wo
 await handle.signal(stateSignal, "RUNNING" as ScheduleWorkflowState); // resume workflow
 await handle.cancel(); // stop schedule workflow completely
 await handle.query(stateQuery); // get wf state (running, paused, or stopped)
+```
+
+## `Entity`
+
+This special class packages an indefinitely long lived Workflow and the Signal and Query that go with updating it. It correctly handles the pending Signals and `continueAsNew`, and calls `continueAsNew` at least once a day as recommended by Temporal.
+
+```ts
+import { Entity } from "temporal-time-utils";
+
+interface Input { /* define your workflow input type here */ }
+interface Update { /* define your workflow update type here */ }
+const entity = new Entity<Input, Update>({
+  activity: 'MyActivityName'
+  activityOptions: {
+    startToCloseTimeout: '1 minute',
+  }
+})
+const handle = await client.start(entity.workflow, {
+  args: [{
+    inputValue: 'initial'
+  }],
+  taskQueue: "scheduler",
+  workflowId: "schedule-for-" + userId,
+});
+
+// during signaling updates
+await client.Signal(entity.Signal, { increment: 1 })
+console.log(await client.Query(entity.Query))
 ```
